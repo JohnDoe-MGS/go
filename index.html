@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Governança Íntegra HUB</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide-react@latest/dist/lucide.js"></script>
+    
+    <style>
+        /* Estilos personalizados para complementar o Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1a3e; /* Fundo azul escuro */
+        }
+        .main-app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "header header"
+                "sidebar main"
+                "sidebar footer";
+            min-height: 100vh;
+        }
+        /* Layout responsivo para telas menores */
+        @media (max-width: 768px) {
+            .main-app-container {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "header"
+                    "main"
+                    "footer";
+            }
+            #sidebar {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 40;
+                height: 100%;
+                transition: transform 0.3s ease-in-out;
+            }
+            #sidebar.open {
+                transform: translateX(0);
+            }
+            #main-content {
+                margin-left: 0;
+            }
+        }
+        .silver-card {
+            background-color: #f0f2f5; /* Tom prateado/cinza claro */
+            border: 1px solid #d9dce1;
+        }
+        .highlight-company {
+            color: #2563eb; /* Azul destacado */
+            font-weight: 600;
+        }
+        /* Estilização para a tabela GUT */
+        .gut-table input {
+            width: 100%;
+            text-align: center;
+            border-radius: 0.375rem;
+            border: 1px solid #ccc;
+            padding: 4px;
+        }
+        .gut-table th, .gut-table td {
+            padding: 8px 12px;
+            text-align: center;
+        }
+        /* Efeito de sublinhado para termos técnicos */
+        .technical-term {
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            cursor: pointer;
+            position: relative;
+        }
+        /* Balão de tooltip */
+        .tooltip-bubble {
+            visibility: hidden;
+            width: 250px;
+            background-color: #2c3e50;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 50;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip-bubble::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #2c3e50 transparent transparent transparent;
+        }
+        .technical-term:hover .tooltip-bubble {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Container do Login -->
+    <div id="login-container" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-xl">
+            <h1 class="text-3xl font-bold text-center">
+                Governança Íntegra <span class="text-blue-600">HUB</span>
+            </h1>
+            <p class="text-center text-gray-600">Acesse sua plataforma de governança.</p>
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="email" class="text-sm font-medium text-gray-700">E-mail</label>
+                    <input id="email" type="email" required class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="seu.email@empresa.com">
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-gray-700">Senha</label>
+                    <input id="password" type="password" required class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="••••••••">
+                </div>
+                <div id="login-error" class="hidden text-sm text-red-600">E-mail ou senha inválidos.</div>
+                <button type="submit" class="w-full py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Entrar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Container Principal do App (inicialmente oculto) -->
+    <div id="app-container" class="hidden main-app-container">
+        <!-- Cabeçalho -->
+        <header style="grid-area: header;" class="flex items-center justify-between p-4 bg-white shadow-md z-30">
+            <div class="flex items-center">
+                <button id="menu-toggle" class="p-2 mr-4 text-gray-600 rounded-md md:hidden hover:bg-gray-100">
+                    <i data-lucide="menu"></i>
+                </button>
+                <h1 id="app-title" class="text-xl font-semibold md:text-2xl">
+                    Governança Íntegra HUB - <span class="highlight-company">Sua Empresa S.A.</span>
+                </h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                 <button class="p-2 text-gray-600 rounded-full hover:bg-gray-100" onclick="showSection('dashboard')">
+                    <i data-lucide="layout-dashboard"></i>
+                </button>
+                <button id="logout-button" class="p-2 text-gray-600 rounded-full hover:bg-gray-100">
+                    <i data-lucide="user-circle"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Barra Lateral (Dashboard) -->
+        <aside id="sidebar" style="grid-area: sidebar;" class="w-64 bg-slate-800 text-white p-4 transition-transform duration-300 ease-in-out md:translate-x-0">
+            <nav>
+                <ul class="space-y-2">
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="dashboard"><i data-lucide="home" class="w-5 h-5 mr-3"></i>Dashboard</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="financeiro"><i data-lucide="trending-up" class="w-5 h-5 mr-3"></i>Financeiro & Estoque</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="bluebook"><i data-lucide="book-open-check" class="w-5 h-5 mr-3"></i>Bluebook & Votações</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="knowledge"><i data-lucide="library" class="w-5 h-5 mr-3"></i>Base de Conhecimento</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="shareholder-notes"><i data-lucide="file-text" class="w-5 h-5 mr-3"></i>Notas de Acionistas</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="gut"><i data-lucide="target" class="w-5 h-5 mr-3"></i>Gestão Estratégica (GUT)</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="integrations"><i data-lucide="video" class="w-5 h-5 mr-3"></i>Videoconferências</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="ocr"><i data-lucide="scan-text" class="w-5 h-5 mr-3"></i>Busca em Documentos</a></li>
+                    <li><a href="#" class="nav-link flex items-center p-2 rounded-md hover:bg-slate-700" data-section="subscription"><i data-lucide="gem" class="w-5 h-5 mr-3"></i>Planos e Assinatura</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <main id="main-content" style="grid-area: main;" class="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
+            
+            <!-- Seção Dashboard -->
+            <section id="dashboard" class="app-section">
+                <h2 class="text-2xl font-bold mb-6">Dashboard Principal</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="font-semibold text-lg">Votações Abertas</h3>
+                        <p class="text-4xl font-bold mt-2 text-blue-600">3</p>
+                        <p class="text-sm text-gray-500 mt-1">Aguardando sua manifestação</p>
+                    </div>
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="font-semibold text-lg">Projetos Ativos</h3>
+                        <p class="text-4xl font-bold mt-2 text-green-600">8</p>
+                        <p class="text-sm text-gray-500 mt-1">Em andamento</p>
+                    </div>
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="font-semibold text-lg">Receita do Mês (Prev.)</h3>
+                        <p class="text-4xl font-bold mt-2 text-yellow-600">R$ 1.2M</p>
+                        <p class="text-sm text-gray-500 mt-1">Parcial de Junho/2025</p>
+                    </div>
+                     <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="font-semibold text-lg">Próximo Prazo</h3>
+                        <p class="text-2xl font-bold mt-2 text-red-600">15/07/2025</p>
+                        <p class="text-sm text-gray-500 mt-1">Aprovação Orçamento Q3</p>
+                    </div>
+                </div>
+
+                <div class="mt-8 silver-card p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-bold mb-4">Metas do Quadrimestre</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-base font-medium text-blue-700">Redução de Custos Operacionais</span>
+                                <span class="text-sm font-medium text-blue-700">75%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 75%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-base font-medium text-green-700">Aumento da Receita Digital</span>
+                                <span class="text-sm font-medium text-green-700">45%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-green-600 h-2.5 rounded-full" style="width: 45%"></div>
+                            </div>
+                        </div>
+                         <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-base font-medium text-yellow-700">Índice de Satisfação do Cliente (NPS)</span>
+                                <span class="text-sm font-medium text-yellow-700">90%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-yellow-500 h-2.5 rounded-full" style="width: 90%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+            
+            <!-- Seção Financeiro e Estoque -->
+            <section id="financeiro" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Controle Financeiro e de Estoque</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="text-xl font-bold mb-4">Desempenho Financeiro (Últimos 6 Meses)</h3>
+                        <canvas id="financialChart"></canvas>
+                    </div>
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="text-xl font-bold mb-4">Composição do Estoque</h3>
+                        <canvas id="inventoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="mt-8 silver-card p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-bold mb-4">Dados Financeiros (Editáveis)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left" id="financial-data-table">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-200">
+                                <tr>
+                                    <th class="px-6 py-3">Mês</th>
+                                    <th class="px-6 py-3">Receita (R$)</th>
+                                    <th class="px-6 py-3">Custos (R$)</th>
+                                    <th class="px-6 py-3">Lucro (R$)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Os dados serão inseridos pelo JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Seção Bluebook e Votações -->
+            <section id="bluebook" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Bluebook & Votações Eletrônicas</h2>
+                <div class="space-y-6">
+                    <!-- Item 1: Orçamento -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-bold">Aprovação do Orçamento para o 3º quadrimestre de 2025</h3>
+                                <p class="text-gray-600 mt-1">Revisão e deliberação sobre a proposta orçamentária.</p>
+                            </div>
+                            <span class="text-sm font-semibold text-red-600 bg-red-100 px-3 py-1 rounded-full">Prazo: 15/07/2025</span>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-gray-300">
+                            <p class="font-semibold mb-2">Sua Votação:</p>
+                            <div class="flex flex-wrap gap-3" data-vote-id="orcamento-q3">
+                                <button class="vote-btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" data-vote="aprovo">Aprovo</button>
+                                <button class="vote-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded" data-vote="aprovo_reserva">Aprovo com Ressalvas</button>
+                                <button class="vote-btn bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" data-vote="reprovo">Reprovo</button>
+                                <button class="vote-btn bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded" data-vote="abster">Abstenho-me</button>
+                            </div>
+                            <div class="mt-4">
+                                <p class="font-semibold">Resultado Parcial:</p>
+                                <div id="results-orcamento-q3" class="text-sm text-gray-700"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Item 2: Políticas -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="text-xl font-bold">Revisão de Políticas e Códigos Internos</h3>
+                        <p class="text-gray-600 mt-1">Análise das atualizações no Código de Conduta e na Política de <span class="technical-term">Due Diligence<span class="tooltip-bubble">Processo de investigação e auditoria para avaliar riscos em uma transação ou parceria comercial.</span></span> de Terceiros.</p>
+                        <span class="inline-block mt-2 text-sm font-semibold text-red-600 bg-red-100 px-3 py-1 rounded-full">Prazo: 31/07/2025</span>
+                        <div class="mt-4 pt-4 border-t border-gray-300">
+                           <p class="font-semibold mb-2">Sua Votação:</p>
+                            <div class="flex flex-wrap gap-3" data-vote-id="politicas-2025">
+                                <button class="vote-btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" data-vote="aprovo">Aprovo</button>
+                                <button class="vote-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded" data-vote="aprovo_reserva">Aprovo com Ressalvas</button>
+                                <button class="vote-btn bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" data-vote="reprovo">Reprovo</button>
+                                <button class="vote-btn bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded" data-vote="abster">Abstenho-me</button>
+                            </div>
+                            <div class="mt-4">
+                                <p class="font-semibold">Resultado Parcial:</p>
+                                <div id="results-politicas-2025" class="text-sm text-gray-700"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Item 3: Ata de Reunião -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm">
+                        <h3 class="text-xl font-bold">Atas de Reuniões</h3>
+                        <div class="mt-4 border-t pt-4">
+                            <p class="font-semibold mb-2">Criar nova Ata de Reunião</p>
+                            <div class="bg-white p-4 border rounded-md">
+                                <div class="border-b pb-2 mb-4">
+                                    <h4 class="text-center font-bold">ATA DA REUNIÃO DO CONSELHO DE ADMINISTRAÇÃO</h4>
+                                    <p class="text-center text-sm">EMPRESA Sua Empresa S.A.</p>
+                                    <p class="text-center text-sm">Data: <span id="ata-date"></span></p>
+                                </div>
+                                <div id="ata-editor" contenteditable="true" class="w-full h-48 p-2 border rounded-md overflow-y-auto" placeholder="Digite o conteúdo da ata aqui...">
+                                    <p>Aos [dia] dias do mês de [mês] de [ano], às [horas], reuniram-se os membros do Conselho de Administração para deliberar sobre a seguinte pauta:</p><ol><li>Ponto 1;</li><li>Ponto 2.</li></ol><p>Deliberações:</p><br><p>Conclusão:</p>
+                                </div>
+                                <div class="border-t pt-2 mt-4 text-center text-sm">
+                                    <p>Assinaturas</p>
+                                </div>
+                                <button id="generate-ata-btn" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Gerar Texto da Ata</button>
+                                <div id="ata-output" class="hidden mt-4 p-4 bg-gray-100 rounded-md whitespace-pre-wrap font-mono text-xs"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Seção Base de Conhecimento -->
+            <section id="knowledge" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Base de Conhecimento em Compliance</h2>
+                <p class="mb-6 text-gray-600">Clique em um tópico para ver detalhes e acessar a fonte original. As informações foram extraídas do <span class="font-semibold">Relatório Estratégico de Compliance</span>.</p>
+                <div id="knowledge-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Conteúdo gerado via JS -->
+                </div>
+            </section>
+            
+             <!-- Seção Notas de Acionistas -->
+            <section id="shareholder-notes" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Resumo das Notas dos Acionistas</h2>
+                <p class="mb-6 text-gray-600">Ressalvas e comentários feitos durante as votações.</p>
+                <div id="notes-container" class="space-y-4">
+                    <p class="text-gray-500">Nenhuma nota ou ressalva registrada até o momento.</p>
+                    <!-- As notas serão inseridas aqui pelo JS -->
+                </div>
+            </section>
+            
+            <!-- Seção Gestão Estratégica (GUT) -->
+            <section id="gut" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Planilha de Priorização (Matriz GUT)</h2>
+                <p class="mb-4 text-gray-600">Atribua notas de 1 a 5 para <span class="technical-term">Gravidade<span class="tooltip-bubble">O impacto do problema caso ele não seja resolvido.</span></span>, <span class="technical-term">Urgência<span class="tooltip-bubble">O tempo disponível ou necessário para resolver o problema.</span></span> e <span class="technical-term">Tendência<span class="tooltip-bubble">A probabilidade do problema piorar com o tempo.</span></span>. O resultado é calculado automaticamente.</p>
+                <div class="silver-card p-4 rounded-lg shadow-sm overflow-x-auto">
+                    <table class="w-full gut-table">
+                        <thead class="bg-slate-200">
+                            <tr>
+                                <th class="text-left">Ação / Projeto Estratégico</th>
+                                <th>Gravidade (G)</th>
+                                <th>Urgência (U)</th>
+                                <th>Tendência (T)</th>
+                                <th>Resultado (G*U*T)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gut-tbody">
+                            <tr>
+                                <td class="text-left">Implementar novo sistema ERP</td>
+                                <td><input type="number" min="1" max="5" value="4" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="3" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="5" class="gut-input"></td>
+                                <td class="font-bold gut-result">60</td>
+                            </tr>
+                            <tr>
+                                <td class="text-left">Expansão para o mercado do Nordeste</td>
+                                <td><input type="number" min="1" max="5" value="5" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="5" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="3" class="gut-input"></td>
+                                <td class="font-bold gut-result">75</td>
+                            </tr>
+                            <tr>
+                                <td class="text-left">Programa de treinamento de lideranças</td>
+                                <td><input type="number" min="1" max="5" value="3" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="2" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="3" class="gut-input"></td>
+                                <td class="font-bold gut-result">18</td>
+                            </tr>
+                            <tr>
+                                <td class="text-left">Atualização da política de home-office</td>
+                                <td><input type="number" min="1" max="5" value="2" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="4" class="gut-input"></td>
+                                <td><input type="number" min="1" max="5" value="2" class="gut-input"></td>
+                                <td class="font-bold gut-result">16</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Seção Integrações -->
+            <section id="integrations" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Integração com Videoconferência</h2>
+                 <p class="mb-6 text-gray-600">Inicie uma reunião instantânea com sua equipe.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <a href="https://teams.microsoft.com/l/meeting/new" target="_blank" class="block silver-card p-8 rounded-lg shadow-sm hover:shadow-lg transition-shadow text-center">
+                        <img src="https://placehold.co/100x100/FFFFFF/0078D4?text=Teams" class="mx-auto mb-4 rounded-md" alt="Ícone do Microsoft Teams">
+                        <h3 class="text-xl font-bold">Iniciar Reunião no MS Teams</h3>
+                    </a>
+                     <a href="https://zoom.us/start/meeting" target="_blank" class="block silver-card p-8 rounded-lg shadow-sm hover:shadow-lg transition-shadow text-center">
+                        <img src="https://placehold.co/100x100/FFFFFF/2D8CFF?text=Zoom" class="mx-auto mb-4 rounded-md" alt="Ícone do Zoom">
+                        <h3 class="text-xl font-bold">Iniciar Reunião no Zoom</h3>
+                    </a>
+                </div>
+            </section>
+            
+            <!-- Seção OCR -->
+            <section id="ocr" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Busca em Documentos com OCR</h2>
+                 <p class="mb-6 text-gray-600">Faça o upload de um documento (PDF, JPG, PNG) para que seu conteúdo se torne pesquisável. (Funcionalidade simulada)</p>
+                <div class="silver-card p-8 rounded-lg shadow-sm text-center">
+                    <div id="ocr-upload-area" class="border-2 border-dashed border-gray-400 rounded-lg p-10">
+                        <i data-lucide="upload-cloud" class="w-16 h-16 mx-auto text-gray-500"></i>
+                        <p class="mt-4 font-semibold">Arraste e solte arquivos aqui ou</p>
+                        <button id="ocr-upload-btn" class="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            Selecione um Arquivo
+                        </button>
+                        <input type="file" id="ocr-file-input" class="hidden">
+                    </div>
+                    <div id="ocr-feedback" class="mt-4 text-green-600 font-semibold"></div>
+                </div>
+            </section>
+
+            <!-- Seção Assinatura -->
+            <section id="subscription" class="app-section hidden">
+                <h2 class="text-2xl font-bold mb-6">Planos e Assinatura</h2>
+                <p class="mb-6 text-gray-600">Renove ou faça um upgrade no seu plano para continuar acessando todos os recursos do HUB.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <!-- Plano 6 meses -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm border-2 border-transparent hover:border-blue-500 transition-all">
+                        <h3 class="text-xl font-bold">6 Meses</h3>
+                        <p class="text-3xl font-extrabold my-4">R$ 2.999</p>
+                        <p class="text-gray-500">Acesso completo</p>
+                        <p class="text-sm font-semibold text-green-600 mt-2">5% de Desconto Aplicado</p>
+                        <button class="subscription-btn mt-6 w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700" data-plan="6">Selecionar Plano</button>
+                    </div>
+                    <!-- Plano 12 meses -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm border-2 border-blue-500 relative">
+                        <span class="absolute top-0 -translate-y-1/2 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full">MAIS POPULAR</span>
+                        <h3 class="text-xl font-bold">12 Meses</h3>
+                        <p class="text-3xl font-extrabold my-4">R$ 5.399</p>
+                        <p class="text-gray-500">Acesso completo</p>
+                        <p class="text-sm font-semibold text-green-600 mt-2">10% de Desconto Aplicado</p>
+                        <button class="subscription-btn mt-6 w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700" data-plan="12">Selecionar Plano</button>
+                    </div>
+                     <!-- Plano 24 meses -->
+                    <div class="silver-card p-6 rounded-lg shadow-sm border-2 border-transparent hover:border-blue-500 transition-all">
+                        <h3 class="text-xl font-bold">24 Meses</h3>
+                        <p class="text-3xl font-extrabold my-4">R$ 9.599</p>
+                        <p class="text-gray-500">Acesso completo</p>
+                        <p class="text-sm font-semibold text-green-600 mt-2">15% de Desconto Aplicado</p>
+                        <button class="subscription-btn mt-6 w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700" data-plan="24">Selecionar Plano</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Rodapé -->
+        <footer style="grid-area: footer;" class="bg-slate-800 text-white p-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                 <p class="text-sm">&copy; <span id="footer-year"></span> Governança Íntegra HUB. Todos os direitos reservados.</p>
+                <div class="relative mt-4 md:mt-0">
+                    <input type="search" placeholder="Busca com inteligência..." class="bg-slate-700 text-white rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-80">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal Genérico -->
+    <div id="modal-container" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="modal-title" class="text-xl font-bold"></h3>
+                <button id="modal-close-btn" class="p-2 rounded-full hover:bg-gray-200">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="modal-content" class="p-6">
+                <!-- Conteúdo do modal -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+    // Inicializa os ícones do Lucide
+    lucide.createIcons();
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+        // --- Variáveis Globais e Estado ---
+        const COMPANY_NAME = "ACME Corp";
+        const ADMIN_USER = { email: 'gov@hub.com', pass: '1122' };
+        
+        const loginContainer = document.getElementById('login-container');
+        const appContainer = document.getElementById('app-container');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const navLinks = document.querySelectorAll('.nav-link');
+        const modalContainer = document.getElementById('modal-container');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        // Estado das votações (simulado)
+        let votes = {
+            'orcamento-q3': { aprovo: 4, aprovo_reserva: 1, reprovo: 1, abster: 0, notes: [] },
+            'politicas-2025': { aprovo: 5, aprovo_reserva: 0, reprovo: 0, abster: 1, notes: [] }
+        };
+        
+        let financialChart, inventoryChart;
+
+        // --- Funções Principais ---
+
+        // Função de Login
+        function handleLogin(e) {
+            e.preventDefault();
+            // CORREÇÃO: Remove espaços em branco antes e depois dos inputs
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (email === ADMIN_USER.email && password === ADMIN_USER.pass) {
+                loginContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                document.getElementById('app-title').querySelector('.highlight-company').textContent = COMPANY_NAME;
+                showSection('dashboard');
+                if (!financialChart) { // Inicializa os gráficos apenas uma vez
+                    initCharts();
+                }
+                updateAllVoteDisplays();
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        }
+
+        // Função de Logout
+        function handleLogout() {
+            appContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+            document.getElementById('login-form').reset();
+            loginError.classList.add('hidden');
+        }
+
+        // Navegação entre seções
+        function showSection(sectionId) {
+            document.querySelectorAll('.app-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
+            // Fecha a sidebar em modo mobile ao clicar num link
+            if (sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
+        }
+        
+        // --- Lógica de Votação ---
+        function handleVoteClick(e) {
+            const button = e.target.closest('.vote-btn');
+            if (!button) return;
+
+            const voteType = button.dataset.vote;
+            const voteId = button.parentElement.dataset.voteId;
+
+            if (voteType === 'aprovo_reserva') {
+                showVoteReservationModal(voteId);
+            } else {
+                // Simula o registro do voto
+                votes[voteId][voteType]++;
+                updateVoteDisplay(voteId);
+                 // Adiciona um feedback visual
+                button.parentElement.querySelectorAll('.vote-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-blue-500'));
+                button.classList.add('ring-2', 'ring-blue-500');
+            }
+        }
+
+        function showVoteReservationModal(voteId) {
+            modalTitle.textContent = 'Adicionar Ressalva';
+            modalContent.innerHTML = `
+                <p class="mb-4">Por favor, descreva suas ressalvas para a aprovação deste item.</p>
+                <textarea id="reservation-text" class="w-full p-2 border rounded-md" rows="4" placeholder="Digite suas ressalvas aqui..."></textarea>
+                <button id="submit-reservation" class="mt-4 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">Salvar Ressalva</button>
+            `;
+            modalContainer.classList.remove('hidden');
+
+            document.getElementById('submit-reservation').onclick = () => {
+                const text = document.getElementById('reservation-text').value;
+                if(text) {
+                    votes[voteId].aprovo_reserva++;
+                    votes[voteId].notes.push({user: 'Admin (gov@hub.com)', text: text });
+                    updateVoteDisplay(voteId);
+                    updateShareholderNotes();
+                }
+                modalContainer.classList.add('hidden');
+            };
+        }
+
+        function updateVoteDisplay(voteId) {
+            const resultsContainer = document.getElementById(`results-${voteId}`);
+            const data = votes[voteId];
+            const total = data.aprovo + data.aprovo_reserva + data.reprovo + data.abster;
+            resultsContainer.innerHTML = `
+                <span class="mr-4">Aprovaram: <strong>${data.aprovo}</strong></span>
+                <span class="mr-4">Aprovaram com Ressalvas: <strong>${data.aprovo_reserva}</strong></span>
+                <span class="mr-4">Reprovaram: <strong>${data.reprovo}</strong></span>
+                <span class="mr-4">Abstenções: <strong>${data.abster}</strong></span>
+                <span class="font-bold">Total: ${total} votos</span>
+            `;
+        }
+        
+        function updateAllVoteDisplays() {
+            Object.keys(votes).forEach(voteId => updateVoteDisplay(voteId));
+        }
+
+        // --- Lógica das Notas de Acionistas ---
+        function updateShareholderNotes() {
+            const container = document.getElementById('notes-container');
+            container.innerHTML = '';
+            let hasNotes = false;
+            Object.values(votes).forEach(voteData => {
+                if (voteData.notes && voteData.notes.length > 0) {
+                    hasNotes = true;
+                    voteData.notes.forEach(note => {
+                        const noteElement = document.createElement('div');
+                        noteElement.className = 'silver-card p-4 rounded-lg';
+                        noteElement.innerHTML = `
+                            <p class="font-semibold">${note.user}</p>
+                            <p class="text-gray-700 mt-1">"${note.text}"</p>
+                        `;
+                        container.appendChild(noteElement);
+                    });
+                }
+            });
+
+            if (!hasNotes) {
+                container.innerHTML = '<p class="text-gray-500">Nenhuma nota ou ressalva registrada até o momento.</p>';
+            }
+        }
+
+        // --- Lógica Financeira ---
+        let financialData = [
+            { month: 'Jan/25', revenue: 850000, costs: 600000 },
+            { month: 'Fev/25', revenue: 920000, costs: 650000 },
+            { month: 'Mar/25', revenue: 1100000, costs: 700000 },
+            { month: 'Abr/25', revenue: 1050000, costs: 720000 },
+            { month: 'Mai/25', revenue: 1300000, costs: 800000 },
+            { month: 'Jun/25', revenue: 1200000, costs: 750000 },
+        ];
+
+        function initCharts() {
+            // Chart Financeiro
+            const fc_ctx = document.getElementById('financialChart').getContext('2d');
+            financialChart = new Chart(fc_ctx, {
+                type: 'line',
+                data: {
+                    labels: financialData.map(d => d.month),
+                    datasets: [
+                        {
+                            label: 'Receita',
+                            data: financialData.map(d => d.revenue),
+                            borderColor: 'rgb(37, 99, 235)',
+                            backgroundColor: 'rgba(37, 99, 235, 0.5)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Custos',
+                            data: financialData.map(d => d.costs),
+                            borderColor: 'rgb(220, 38, 38)',
+                            backgroundColor: 'rgba(220, 38, 38, 0.5)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Chart de Estoque
+            const ic_ctx = document.getElementById('inventoryChart').getContext('2d');
+            inventoryChart = new Chart(ic_ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Matéria Prima', 'Produto Acabado', 'Insumos'],
+                    datasets: [{
+                        label: 'Valor do Estoque (R$)',
+                        data: [450000, 780000, 120000],
+                        backgroundColor: ['rgb(2, 132, 199)', 'rgb(217, 119, 6)', 'rgb(107, 114, 128)'],
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            
+            renderFinancialTable();
+        }
+        
+        function renderFinancialTable() {
+            const tbody = document.getElementById('financial-data-table').querySelector('tbody');
+            tbody.innerHTML = '';
+            financialData.forEach((data, index) => {
+                const profit = data.revenue - data.costs;
+                const row = `
+                    <tr class="bg-white border-b">
+                        <td class="px-6 py-4 font-medium">${data.month}</td>
+                        <td class="px-6 py-4"><input type="number" value="${data.revenue}" data-index="${index}" data-field="revenue" class="w-full p-1 border rounded financial-input"></td>
+                        <td class="px-6 py-4"><input type="number" value="${data.costs}" data-index="${index}" data-field="costs" class="w-full p-1 border rounded financial-input"></td>
+                        <td class="px-6 py-4 font-semibold">${profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+        
+        function updateFinancialChart(e) {
+            if (e.target.classList.contains('financial-input')) {
+                const index = e.target.dataset.index;
+                const field = e.target.dataset.field;
+                const value = parseInt(e.target.value);
+                
+                financialData[index][field] = value;
+                
+                financialChart.data.datasets[0].data = financialData.map(d => d.revenue);
+                financialChart.data.datasets[1].data = financialData.map(d => d.costs);
+                financialChart.update();
+                renderFinancialTable();
+            }
+        }
+        
+        // --- Lógica Matriz GUT ---
+        function calculateGut() {
+            const rows = document.getElementById('gut-tbody').querySelectorAll('tr');
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('.gut-input');
+                const g = parseInt(inputs[0].value) || 0;
+                const u = parseInt(inputs[1].value) || 0;
+                const t = parseInt(inputs[2].value) || 0;
+                const result = g * u * t;
+                row.querySelector('.gut-result').textContent = result;
+            });
+        }
+        
+        // --- Lógica Base de Conhecimento ---
+        const knowledgeData = [
+            { id: 'iso37301', title: 'ISO 37301: Gestão de Compliance', summary: 'Padrão internacional para implementação de um Sistema de Gestão de Compliance (CMS) eficaz.', link: 'https://www.iso.org/standard/75080.html' },
+            { id: 'iso37001', title: 'ISO 37001: Gestão Antissuborno', summary: 'Framework para prevenir, detectar e responder ao suborno, integrável com a ISO 37301.', link: 'https://www.iso.org/standard/65223.html' },
+            { id: 'coso', title: 'COSO Framework', summary: 'Modelo conceitual para projetar e avaliar a eficácia dos controles internos de uma organização.', link: 'https://www.coso.org/sitepages/internal-control.aspx' },
+            { id: 'lei12846', title: 'Lei Anticorrupção (Lei 12.846/13)', summary: 'Institui a responsabilidade objetiva de pessoas jurídicas por atos de corrupção no Brasil.', link: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12846.htm' },
+            { id: 'dec11129', title: 'Decreto 11.129/2022', summary: 'Regulamenta a Lei Anticorrupção e detalha os critérios de avaliação de Programas de Integridade.', link: 'https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/decreto/d11129.htm' },
+            { id: 'esg', title: 'Governança (ESG)', summary: 'A dimensão "G" de ESG é sustentada por um programa de compliance robusto, aplicando controles a riscos sociais e ambientais.', link: '#' }
+        ];
+
+        function populateKnowledgeBase() {
+            const grid = document.getElementById('knowledge-grid');
+            grid.innerHTML = '';
+            knowledgeData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'silver-card p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer';
+                card.dataset.id = item.id;
+                card.innerHTML = `<h3 class="font-bold text-lg">${item.title}</h3><p class="text-gray-600 mt-2">${item.summary}</p>`;
+                grid.appendChild(card);
+            });
+        }
+        
+        function showKnowledgeDetails(e) {
+            const card = e.target.closest('[data-id]');
+            if (!card) return;
+            
+            const item = knowledgeData.find(k => k.id === card.dataset.id);
+            modalTitle.textContent = item.title;
+            modalContent.innerHTML = `
+                <p class="mb-4">${item.summary}</p>
+                <a href="${item.link}" target="_blank" class="text-blue-600 hover:underline">Acessar fonte original &rarr;</a>
+            `;
+            modalContainer.classList.remove('hidden');
+        }
+
+        // --- Lógica da Assinatura ---
+        function handleSubscription(e) {
+            const btn = e.target.closest('.subscription-btn');
+            if(!btn) return;
+
+            const plan = btn.dataset.plan;
+            let price, discount = 0.05 * (plan/6);
+            if (plan === '6') price = 2999;
+            if (plan === '12') price = 5399;
+            if (plan === '24') price = 9599;
+
+            modalTitle.textContent = `Pagamento - Plano ${plan} Meses`;
+            modalContent.innerHTML = `
+                <p class="mb-4">Você selecionou o plano de ${plan} meses por <strong>R$ ${price}</strong>.</p>
+                <div class="space-y-4">
+                    <div class="border p-4 rounded-lg">
+                        <h4 class="font-semibold">PIX (com 5% de desconto adicional)</h4>
+                        <p>Valor final: <strong class="text-green-600">R$ ${(price * 0.95).toFixed(2)}</strong></p>
+                        <img src="https://placehold.co/150x150/e2e8f0/4a5568?text=QR+CODE" class="mx-auto my-2" alt="QR Code PIX">
+                        <p class="text-xs text-center break-words">Copia e Cola: 00020126...br.gov.bcb.pix...${Date.now()}</p>
+                    </div>
+                    <div class="border p-4 rounded-lg">
+                        <h4 class="font-semibold">Cartão de Crédito</h4>
+                        <p>Parcele em até <strong>3x de R$ ${(price / 3).toFixed(2)}</strong> sem juros.</p>
+                        <button class="mt-2 bg-blue-600 text-white py-2 px-4 rounded w-full">Pagar com Cartão</button>
+                    </div>
+                    <div class="border p-4 rounded-lg">
+                        <h4 class="font-semibold">Boleto Bancário</h4>
+                        <p>Vencimento em 3 dias úteis.</p>
+                        <button class="mt-2 bg-blue-600 text-white py-2 px-4 rounded w-full">Gerar Boleto</button>
+                    </div>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+        }
+
+        // --- Outras Lógicas (Ata, OCR) ---
+        function setupOtherLogics() {
+            document.getElementById('ata-date').textContent = new Date().toLocaleDateString('pt-BR');
+            document.getElementById('generate-ata-btn').addEventListener('click', () => {
+                const content = document.getElementById('ata-editor').innerText;
+                const output = document.getElementById('ata-output');
+                output.textContent = content;
+                output.classList.remove('hidden');
+            });
+
+            document.getElementById('ocr-upload-btn').addEventListener('click', () => document.getElementById('ocr-file-input').click());
+            document.getElementById('ocr-file-input').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const feedback = document.getElementById('ocr-feedback');
+                    feedback.textContent = `Arquivo "${file.name}" carregado com sucesso. O conteúdo está sendo indexado. (simulado)`;
+                }
+            });
+            document.getElementById('footer-year').textContent = new Date().getFullYear();
+        }
+
+        // --- Event Listeners ---
+        loginForm.addEventListener('submit', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+        
+        menuToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+        mainContent.addEventListener('click', () => {
+             if (sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showSection(e.currentTarget.dataset.section);
+            });
+        });
+
+        document.getElementById('bluebook').addEventListener('click', handleVoteClick);
+        document.getElementById('gut').addEventListener('input', calculateGut);
+        document.getElementById('knowledge-grid').addEventListener('click', showKnowledgeDetails);
+        document.getElementById('subscription').addEventListener('click', handleSubscription);
+        document.getElementById('financial-data-table').addEventListener('change', updateFinancialChart);
+        
+        modalCloseBtn.addEventListener('click', () => modalContainer.classList.add('hidden'));
+        modalContainer.addEventListener('click', (e) => {
+            if (e.target === modalContainer) {
+                modalContainer.classList.add('hidden');
+            }
+        });
+        
+        // --- Inicialização ---
+        populateKnowledgeBase();
+        setupOtherLogics();
+        updateShareholderNotes();
+    });
+    </script>
+</body>
+</html>
